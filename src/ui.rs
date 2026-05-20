@@ -299,12 +299,12 @@ fn render_help_popup(frame: &mut Frame, theme: &Theme) {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(vec![
-            Span::styled("  j / Down ", Style::default().fg(theme.warning)),
-            Span::raw("Move down"),
+            Span::styled("  ↑ / ↓    ", Style::default().fg(theme.warning)),
+            Span::raw("Move between lines"),
         ]),
         Line::from(vec![
-            Span::styled("  k / Up   ", Style::default().fg(theme.warning)),
-            Span::raw("Move up"),
+            Span::styled("  j / k    ", Style::default().fg(theme.warning)),
+            Span::raw("Scroll detail (or move if closed)"),
         ]),
         Line::from(vec![
             Span::styled("  g        ", Style::default().fg(theme.warning)),
@@ -338,12 +338,16 @@ fn render_help_popup(frame: &mut Frame, theme: &Theme) {
             Span::raw("Toggle detail panel (pretty JSON)"),
         ]),
         Line::from(vec![
-            Span::styled("  J / K    ", Style::default().fg(theme.accent)),
-            Span::raw("Scroll detail panel down/up"),
+            Span::styled("  j / k    ", Style::default().fg(theme.accent)),
+            Span::raw("Scroll detail panel"),
         ]),
         Line::from(vec![
-            Span::styled("  Ctrl+f/b ", Style::default().fg(theme.accent)),
-            Span::raw("Page scroll detail panel"),
+            Span::styled("  Ctrl+d/u ", Style::default().fg(theme.accent)),
+            Span::raw("Half-page scroll (detail if open)"),
+        ]),
+        Line::from(vec![
+            Span::styled("  PgDn/Up  ", Style::default().fg(theme.accent)),
+            Span::raw("Full-page scroll (detail if open)"),
         ]),
         Line::from(""),
         Line::from(Span::styled(

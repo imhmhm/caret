@@ -356,11 +356,27 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                         app.should_quit = true;
                     }
 
-                    // Navigation
-                    (KeyCode::Char('j'), _) | (KeyCode::Down, _) => {
+                    // j/k: scroll detail panel when open, otherwise scroll main list
+                    (KeyCode::Char('j'), KeyModifiers::NONE) => {
+                        if app.show_detail {
+                            app.detail_scroll_down(1);
+                        } else {
+                            app.scroll_down(1);
+                        }
+                    }
+                    (KeyCode::Char('k'), KeyModifiers::NONE) => {
+                        if app.show_detail {
+                            app.detail_scroll_up(1);
+                        } else {
+                            app.scroll_up(1);
+                        }
+                    }
+
+                    // Arrow keys always control the main list
+                    (KeyCode::Down, _) => {
                         app.scroll_down(1);
                     }
-                    (KeyCode::Char('k'), _) | (KeyCode::Up, _) => {
+                    (KeyCode::Up, _) => {
                         app.scroll_up(1);
                     }
                     (KeyCode::Char('g'), _) => {
@@ -370,16 +386,32 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                         app.goto_bottom();
                     }
                     (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
-                        app.scroll_down(app.viewport_height / 2);
+                        if app.show_detail {
+                            app.detail_scroll_down(app.detail_viewport_height / 2);
+                        } else {
+                            app.scroll_down(app.viewport_height / 2);
+                        }
                     }
                     (KeyCode::Char('u'), KeyModifiers::CONTROL) => {
-                        app.scroll_up(app.viewport_height / 2);
+                        if app.show_detail {
+                            app.detail_scroll_up(app.detail_viewport_height / 2);
+                        } else {
+                            app.scroll_up(app.viewport_height / 2);
+                        }
                     }
                     (KeyCode::PageDown, _) => {
-                        app.scroll_down(app.viewport_height);
+                        if app.show_detail {
+                            app.detail_scroll_down(app.detail_viewport_height);
+                        } else {
+                            app.scroll_down(app.viewport_height);
+                        }
                     }
                     (KeyCode::PageUp, _) => {
-                        app.scroll_up(app.viewport_height);
+                        if app.show_detail {
+                            app.detail_scroll_up(app.detail_viewport_height);
+                        } else {
+                            app.scroll_up(app.viewport_height);
+                        }
                     }
 
                     // Toggle Token X-Ray mode
@@ -411,28 +443,6 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                     (KeyCode::Right, _) | (KeyCode::Char('l'), _) => {
                         if app.view_mode == ViewMode::TokenXray && app.show_detail {
                             app.next_token();
-                        }
-                    }
-
-                    // Detail panel scroll (J/K when detail is open)
-                    (KeyCode::Char('J'), _) => {
-                        if app.show_detail {
-                            app.detail_scroll_down(1);
-                        }
-                    }
-                    (KeyCode::Char('K'), _) => {
-                        if app.show_detail {
-                            app.detail_scroll_up(1);
-                        }
-                    }
-                    (KeyCode::Char('F'), KeyModifiers::CONTROL) => {
-                        if app.show_detail {
-                            app.detail_scroll_down(app.detail_viewport_height);
-                        }
-                    }
-                    (KeyCode::Char('B'), KeyModifiers::CONTROL) => {
-                        if app.show_detail {
-                            app.detail_scroll_up(app.detail_viewport_height);
                         }
                     }
 
