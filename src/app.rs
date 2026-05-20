@@ -58,6 +58,12 @@ pub struct App {
     pub selected_line: usize,
     /// Whether to show the detail panel
     pub show_detail: bool,
+    /// Scroll offset for the detail panel
+    pub detail_scroll: usize,
+    /// Number of visible lines in the detail panel viewport
+    pub detail_viewport_height: usize,
+    /// Total number of lines in the detail panel content (cached during render)
+    pub detail_content_lines: usize,
     /// Tree expansion state for JSON tree view
     #[allow(dead_code)]
     pub tree_expanded: std::collections::HashSet<String>,
@@ -82,6 +88,9 @@ impl App {
             should_quit: false,
             selected_line: 0,
             show_detail: false,
+            detail_scroll: 0,
+            detail_viewport_height: 0,
+            detail_content_lines: 0,
             tree_expanded: std::collections::HashSet::new(),
             selected_token: 0,
             token_count: 0,
@@ -102,6 +111,7 @@ impl App {
     /// Toggle detail panel visibility
     pub fn toggle_detail(&mut self) {
         self.show_detail = !self.show_detail;
+        self.detail_scroll = 0;
     }
 
     /// Toggle dedup scan: run if no result, clear if already scanned.
@@ -155,6 +165,7 @@ impl App {
         self.selected_line =
             (self.selected_line + n).min(self.dataset.line_count().saturating_sub(1));
         self.selected_token = 0; // Reset token selection when changing lines
+        self.detail_scroll = 0; // Reset detail scroll when changing lines
     }
 
     /// Scroll up by n lines
@@ -162,6 +173,7 @@ impl App {
         self.scroll = self.scroll.saturating_sub(n);
         self.selected_line = self.selected_line.saturating_sub(n);
         self.selected_token = 0; // Reset token selection when changing lines
+        self.detail_scroll = 0; // Reset detail scroll when changing lines
     }
 
     /// Jump to the beginning
@@ -169,6 +181,7 @@ impl App {
         self.scroll = 0;
         self.selected_line = 0;
         self.selected_token = 0;
+        self.detail_scroll = 0;
     }
 
     /// Jump to the end
@@ -180,6 +193,7 @@ impl App {
         self.scroll = max_scroll;
         self.selected_line = self.dataset.line_count().saturating_sub(1);
         self.selected_token = 0;
+        self.detail_scroll = 0;
     }
 
     /// Update viewport height based on terminal size
@@ -230,5 +244,16 @@ impl App {
         if self.selected_token >= count {
             self.selected_token = 0;
         }
+    }
+
+    /// Scroll the detail panel down by n lines
+    pub fn detail_scroll_down(&mut self, n: usize) {
+        let max_scroll = self.detail_content_lines.saturating_sub(self.detail_viewport_height);
+        self.detail_scroll = (self.detail_scroll + n).min(max_scroll);
+    }
+
+    /// Scroll the detail panel up by n lines
+    pub fn detail_scroll_up(&mut self, n: usize) {
+        self.detail_scroll = self.detail_scroll.saturating_sub(n);
     }
 }

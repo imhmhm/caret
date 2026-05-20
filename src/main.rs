@@ -414,6 +414,28 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                         }
                     }
 
+                    // Detail panel scroll (J/K when detail is open)
+                    (KeyCode::Char('J'), _) => {
+                        if app.show_detail {
+                            app.detail_scroll_down(1);
+                        }
+                    }
+                    (KeyCode::Char('K'), _) => {
+                        if app.show_detail {
+                            app.detail_scroll_up(1);
+                        }
+                    }
+                    (KeyCode::Char('F'), KeyModifiers::CONTROL) => {
+                        if app.show_detail {
+                            app.detail_scroll_down(app.detail_viewport_height);
+                        }
+                    }
+                    (KeyCode::Char('B'), KeyModifiers::CONTROL) => {
+                        if app.show_detail {
+                            app.detail_scroll_up(app.detail_viewport_height);
+                        }
+                    }
+
                     _ => {}
                 }
             }

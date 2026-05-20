@@ -337,6 +337,14 @@ fn render_help_popup(frame: &mut Frame, theme: &Theme) {
             Span::styled("  Enter    ", Style::default().fg(theme.accent)),
             Span::raw("Toggle detail panel (pretty JSON)"),
         ]),
+        Line::from(vec![
+            Span::styled("  J / K    ", Style::default().fg(theme.accent)),
+            Span::raw("Scroll detail panel down/up"),
+        ]),
+        Line::from(vec![
+            Span::styled("  Ctrl+f/b ", Style::default().fg(theme.accent)),
+            Span::raw("Page scroll detail panel"),
+        ]),
         Line::from(""),
         Line::from(Span::styled(
             "Analysis",
@@ -388,13 +396,27 @@ fn render_detail_panel(frame: &mut Frame, app: &mut App, area: Rect, theme: &The
         .map(|line| highlight_json(line, theme))
         .collect();
 
+    // Update detail panel content line count and viewport height
+    app.detail_content_lines = lines.len();
+    app.detail_viewport_height = area.height.saturating_sub(2) as usize; // subtract borders
+
     let dup_label = if app.line_is_duplicate(app.selected_line) {
         " [DUPLICATE]"
     } else {
         ""
     };
 
-    let title = format!(" Record {}{} ", app.selected_line + 1, dup_label);
+    let scroll_indicator = if app.detail_content_lines > app.detail_viewport_height {
+        format!(
+            " ({}/{})",
+            app.detail_scroll + 1,
+            app.detail_content_lines
+        )
+    } else {
+        String::new()
+    };
+
+    let title = format!(" Record {}{}{} ", app.selected_line + 1, dup_label, scroll_indicator);
 
     let paragraph = Paragraph::new(lines)
         .block(
@@ -404,7 +426,8 @@ fn render_detail_panel(frame: &mut Frame, app: &mut App, area: Rect, theme: &The
                 .border_style(Style::default().fg(theme.border))
                 .style(Style::default().bg(theme.bg)),
         )
-        .wrap(Wrap { trim: false });
+        .wrap(Wrap { trim: false })
+        .scroll((app.detail_scroll as u16, 0));
 
     frame.render_widget(paragraph, area);
 }
@@ -459,7 +482,7 @@ fn render_token_xray_hover(
 
     // === Render main content area with colored tokens ===
     let mut lines = Vec::new();
-    
+
     // Header
     lines.push(Line::from(vec![
         Span::styled(
@@ -507,24 +530,39 @@ fn render_token_xray_hover(
         lines.push(Line::from(spans));
     }
 
+    // Update detail panel content line count and viewport height
+    app.detail_content_lines = lines.len();
+    app.detail_viewport_height = chunks[0].height.saturating_sub(2) as usize; // subtract borders
+
     let dup_label = if app.line_is_duplicate(app.selected_line) {
         " [DUP]"
     } else {
         ""
     };
 
+    let scroll_indicator = if app.detail_content_lines > app.detail_viewport_height {
+        format!(
+            " ({}/{})",
+            app.detail_scroll + 1,
+            app.detail_content_lines
+        )
+    } else {
+        String::new()
+    };
+
     let main_content = Paragraph::new(lines)
         .block(
             Block::default()
                 .title(Span::styled(
-                    format!(" Record {}{} ", app.selected_line + 1, dup_label),
+                    format!(" Record {}{}{} ", app.selected_line + 1, dup_label, scroll_indicator),
                     Style::default().fg(theme.accent),
                 ))
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(theme.border))
                 .style(Style::default().bg(theme.bg)),
         )
-        .wrap(Wrap { trim: false });
+        .wrap(Wrap { trim: false })
+        .scroll((app.detail_scroll as u16, 0));
 
     frame.render_widget(main_content, chunks[0]);
 
