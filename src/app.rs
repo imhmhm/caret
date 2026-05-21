@@ -248,7 +248,8 @@ impl App {
 
     /// Scroll the detail panel down by n lines
     pub fn detail_scroll_down(&mut self, n: usize) {
-        self.detail_scroll = self.detail_scroll.saturating_add(n);
+        let max_scroll = self.detail_content_lines.saturating_sub(self.detail_viewport_height);
+        self.detail_scroll = (self.detail_scroll + n).min(max_scroll);
     }
 
     /// Scroll the detail panel up by n lines

@@ -384,6 +384,26 @@ fn render_help_popup(frame: &mut Frame, theme: &Theme) {
     frame.render_widget(help, area);
 }
 
+/// Calculate the total number of visual rows after word-wrapping,
+/// using the same textwrap algorithm that ratatui uses internally.
+fn wrapped_line_count(lines: &[Line<'_>], available_width: u16) -> usize {
+    if available_width == 0 {
+        return lines.len();
+    }
+    let options = textwrap::Options::new(available_width as usize);
+    let mut total = 0;
+    for line in lines {
+        // Extract plain text from all spans
+        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        if text.is_empty() {
+            total += 1; // empty line still takes one row
+        } else {
+            total += textwrap::wrap(&text, &options).len();
+        }
+    }
+    total
+}
+
 /// Render the detail panel showing pretty-printed JSON
 fn render_detail_panel(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
     // In Token X-Ray mode with tokenizer, show hover-style token details
@@ -400,7 +420,7 @@ fn render_detail_panel(frame: &mut Frame, app: &mut App, area: Rect, theme: &The
         .map(|line| highlight_json(line, theme))
         .collect();
 
-    app.detail_content_lines = lines.len();
+    app.detail_content_lines = wrapped_line_count(&lines, area.width.saturating_sub(2));
     app.detail_viewport_height = area.height.saturating_sub(2) as usize; // subtract borders
 
     let dup_label = if app.line_is_duplicate(app.selected_line) {
@@ -524,7 +544,7 @@ fn render_token_xray_hover(
     }
 
     // Update detail panel content line count and viewport height
-    app.detail_content_lines = lines.len();
+    app.detail_content_lines = wrapped_line_count(&lines, chunks[0].width.saturating_sub(2));
     app.detail_viewport_height = chunks[0].height.saturating_sub(2) as usize; // subtract borders
 
     let dup_label = if app.line_is_duplicate(app.selected_line) {
