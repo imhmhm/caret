@@ -384,24 +384,6 @@ fn render_help_popup(frame: &mut Frame, theme: &Theme) {
     frame.render_widget(help, area);
 }
 
-/// Calculate the total number of visual rows after word-wrapping
-fn wrapped_line_count(lines: &[Line], available_width: u16) -> usize {
-    if available_width == 0 {
-        return lines.len();
-    }
-    let width = available_width as usize;
-    let mut total = 0;
-    for line in lines {
-        let line_width = line.width();
-        if line_width == 0 {
-            total += 1; // empty line still takes one row
-        } else {
-            total += (line_width + width - 1) / width; // ceil division
-        }
-    }
-    total
-}
-
 /// Render the detail panel showing pretty-printed JSON
 fn render_detail_panel(frame: &mut Frame, app: &mut App, area: Rect, theme: &Theme) {
     // In Token X-Ray mode with tokenizer, show hover-style token details
@@ -418,9 +400,7 @@ fn render_detail_panel(frame: &mut Frame, app: &mut App, area: Rect, theme: &The
         .map(|line| highlight_json(line, theme))
         .collect();
 
-    // Update detail panel: use visual (wrapped) line count for scroll bounds
-    let inner_width = area.width.saturating_sub(2); // subtract left+right borders
-    app.detail_content_lines = wrapped_line_count(&lines, inner_width);
+    app.detail_content_lines = lines.len();
     app.detail_viewport_height = area.height.saturating_sub(2) as usize; // subtract borders
 
     let dup_label = if app.line_is_duplicate(app.selected_line) {
@@ -429,17 +409,7 @@ fn render_detail_panel(frame: &mut Frame, app: &mut App, area: Rect, theme: &The
         ""
     };
 
-    let scroll_indicator = if app.detail_content_lines > app.detail_viewport_height {
-        format!(
-            " ({}/{})",
-            app.detail_scroll + 1,
-            app.detail_content_lines
-        )
-    } else {
-        String::new()
-    };
-
-    let title = format!(" Record {}{}{} ", app.selected_line + 1, dup_label, scroll_indicator);
+    let title = format!(" Record {}{} ", app.selected_line + 1, dup_label);
 
     let paragraph = Paragraph::new(lines)
         .block(
@@ -553,9 +523,8 @@ fn render_token_xray_hover(
         lines.push(Line::from(spans));
     }
 
-    // Update detail panel: use visual (wrapped) line count for scroll bounds
-    let inner_width = chunks[0].width.saturating_sub(2); // subtract left+right borders
-    app.detail_content_lines = wrapped_line_count(&lines, inner_width);
+    // Update detail panel content line count and viewport height
+    app.detail_content_lines = lines.len();
     app.detail_viewport_height = chunks[0].height.saturating_sub(2) as usize; // subtract borders
 
     let dup_label = if app.line_is_duplicate(app.selected_line) {
@@ -564,21 +533,11 @@ fn render_token_xray_hover(
         ""
     };
 
-    let scroll_indicator = if app.detail_content_lines > app.detail_viewport_height {
-        format!(
-            " ({}/{})",
-            app.detail_scroll + 1,
-            app.detail_content_lines
-        )
-    } else {
-        String::new()
-    };
-
     let main_content = Paragraph::new(lines)
         .block(
             Block::default()
                 .title(Span::styled(
-                    format!(" Record {}{}{} ", app.selected_line + 1, dup_label, scroll_indicator),
+                    format!(" Record {}{} ", app.selected_line + 1, dup_label),
                     Style::default().fg(theme.accent),
                 ))
                 .borders(Borders::ALL)
