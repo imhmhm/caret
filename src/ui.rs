@@ -89,10 +89,14 @@ fn render_content(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
             let line_idx = app.scroll + i;
             let line_content = app.dataset.get_line(line_idx)?;
 
-            // Truncate long lines for display
+            // Truncate long lines for display (respecting UTF-8 char boundaries)
             let display_width = area.width as usize - 10;
             let truncated = if line_content.len() > display_width {
-                format!("{}...", &line_content[..display_width.saturating_sub(3)])
+                let mut end = display_width.saturating_sub(3);
+                while !line_content.is_char_boundary(end) && end > 0 {
+                    end -= 1;
+                }
+                format!("{}...", &line_content[..end])
             } else {
                 line_content.to_string()
             };
