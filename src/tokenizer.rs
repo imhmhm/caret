@@ -319,11 +319,22 @@ impl TokenizerWrapper {
                     ids.iter()
                         .zip(offsets.iter())
                         .zip(tokens.iter())
-                        .map(|((&id, &(start, end)), token)| TokenInfo {
-                            token_id: id,
-                            byte_start: start,
-                            byte_end: end,
-                            text: token.clone(),
+                        .map(|((&id, &(start, end)), token)| {
+                            // Prefer the original text slice (real UTF-8 chars),
+                            // not the BPE-internal token string which mangles
+                            // multi-byte chars (e.g. Chinese "把" -> "æĬĬ").
+                            // Fall back to the BPE token only when the offsets
+                            // don't land on a valid UTF-8 boundary.
+                            let token_text = text
+                                .get(start..end)
+                                .map(|s| s.to_string())
+                                .unwrap_or_else(|| token.clone());
+                            TokenInfo {
+                                token_id: id,
+                                byte_start: start,
+                                byte_end: end,
+                                text: token_text,
+                            }
                         })
                         .collect()
                 } else {
