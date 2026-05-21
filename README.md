@@ -98,15 +98,19 @@ The engine works in two phases: parallel fingerprinting (workers read directly f
 
 | Key | Action |
 |-----|--------|
-| `j` / `Down` | Move down |
-| `k` / `Up` | Move up |
-| `g` / `G` | Top / Bottom |
-| `Ctrl+d` / `Ctrl+u` | Page down / up |
+| `↑` / `↓` | Move between data lines (always controls main list) |
+| `j` / `k` | Scroll detail panel when open, otherwise move main list |
+| `g` / `G` | Top / Bottom of main list |
+| `Ctrl+d` / `Ctrl+u` | Half-page scroll (detail panel if open, otherwise main list) |
+| `PageDown` / `PageUp` | Full-page scroll (detail panel if open, otherwise main list) |
 | `Tab` | Cycle view: Text / Token X-Ray / Tree |
 | `Enter` | Toggle detail panel |
+| `←` / `→` (or `h` / `l`) | Navigate tokens (Token X-Ray mode with detail open) |
 | `D` | Toggle dedup scan |
 | `?` | Help |
-| `q` | Quit |
+| `q` / `Esc` | Quit |
+
+> Tip: when the detail panel is open, use `↑`/`↓` to switch the inspected record on the left, and `j`/`k` (or `Ctrl+d`/`Ctrl+u`, `PageDown`/`PageUp`) to scroll the JSON content on the right. Switching records automatically resets the detail panel scroll position.
 
 ## Usage Reference
 
