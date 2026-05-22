@@ -52,12 +52,20 @@ pub struct App {
     pub dedup_result: Option<DedupResult>,
     /// Optional JSON field path for field-specific dedup (dot-notation)
     pub dedup_field: Option<String>,
+    /// Dedup strategy used by TUI's D key
+    pub dedup_strategy: DedupStrategy,
     /// Whether to show the dedup group popup
     pub show_dedup_group: bool,
-    /// Selected index within the dedup group popup list
+    /// Selected index within the dedup group popup list (left panel)
     pub dedup_group_selected: usize,
-    /// Index of the currently expanded item in the dedup group popup (None = collapsed)
-    pub dedup_group_expanded: Option<usize>,
+    /// Which panel has focus in the dedup group popup
+    pub dedup_group_focus_right: bool,
+    /// Scroll offset for the right panel in the dedup group popup
+    pub dedup_group_detail_scroll: usize,
+    /// Number of visible lines in the dedup group detail viewport (cached during render)
+    pub dedup_group_detail_viewport_height: usize,
+    /// Total number of lines in the dedup group detail content (cached during render)
+    pub dedup_group_detail_content_lines: usize,
     /// Whether to show the help popup
     pub show_help: bool,
     /// Whether the app should quit
@@ -93,9 +101,13 @@ impl App {
             lint_results: Vec::new(),
             dedup_result: None,
             dedup_field: None,
+            dedup_strategy: DedupStrategy::Exact,
             show_dedup_group: false,
             dedup_group_selected: 0,
-            dedup_group_expanded: None,
+            dedup_group_focus_right: false,
+            dedup_group_detail_scroll: 0,
+            dedup_group_detail_viewport_height: 0,
+            dedup_group_detail_content_lines: 0,
             show_help: false,
             should_quit: false,
             selected_line: 0,
@@ -127,13 +139,13 @@ impl App {
     }
 
     /// Toggle dedup scan: run if no result, clear if already scanned.
-    /// Uses `dedup_field` if set for field-specific dedup.
+    /// Uses `dedup_strategy` and `dedup_field` if set.
     pub fn toggle_dedup(&mut self) {
         if self.dedup_result.is_some() {
             self.dedup_result = None;
             self.show_dedup_group = false;
         } else {
-            let mut engine = DedupEngine::new(DedupStrategy::SimHash { threshold: 3 });
+            let mut engine = DedupEngine::new(self.dedup_strategy);
             if let Some(ref field) = self.dedup_field {
                 engine = engine.with_field(field.clone());
             }
@@ -147,30 +159,38 @@ impl App {
         if self.dedup_result.is_some() {
             self.show_dedup_group = !self.show_dedup_group;
             self.dedup_group_selected = 0;
-            self.dedup_group_expanded = None;
+            self.dedup_group_focus_right = false;
+            self.dedup_group_detail_scroll = 0;
         }
     }
 
-    /// Move selection up in the dedup group popup
+    /// Move selection up in the dedup group popup (left panel)
     pub fn dedup_group_select_up(&mut self) {
         if self.dedup_group_selected > 0 {
             self.dedup_group_selected -= 1;
+            self.dedup_group_detail_scroll = 0; // reset scroll when changing item
         }
     }
 
-    /// Move selection down in the dedup group popup
+    /// Move selection down in the dedup group popup (left panel)
     pub fn dedup_group_select_down(&mut self) {
-        // Bounds checked in render via group.len()
-        self.dedup_group_selected = self.dedup_group_selected.saturating_add(1);
+        if let Some(ref result) = self.dedup_result {
+            let group = result.get_duplicate_group(self.selected_line);
+            let max = group.len().saturating_sub(1);
+            self.dedup_group_selected = self.dedup_group_selected.saturating_add(1).min(max);
+            self.dedup_group_detail_scroll = 0; // reset scroll when changing item
+        }
     }
 
-    /// Toggle expand/collapse of the selected item in the dedup group popup
-    pub fn dedup_group_toggle_expand(&mut self) {
-        if self.dedup_group_expanded == Some(self.dedup_group_selected) {
-            self.dedup_group_expanded = None;
-        } else {
-            self.dedup_group_expanded = Some(self.dedup_group_selected);
-        }
+    /// Scroll the dedup group detail panel down
+    pub fn dedup_group_detail_scroll_down(&mut self, n: usize) {
+        let max_scroll = self.dedup_group_detail_content_lines.saturating_sub(self.dedup_group_detail_viewport_height);
+        self.dedup_group_detail_scroll = (self.dedup_group_detail_scroll + n).min(max_scroll);
+    }
+
+    /// Scroll the dedup group detail panel up
+    pub fn dedup_group_detail_scroll_up(&mut self, n: usize) {
+        self.dedup_group_detail_scroll = self.dedup_group_detail_scroll.saturating_sub(n);
     }
 
     /// Get the current line content

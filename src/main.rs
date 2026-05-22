@@ -82,8 +82,8 @@ struct Args {
     #[argh(switch)]
     dedup: bool,
 
-    /// dedup strategy: exact, simhash (default: simhash)
-    #[argh(option, default = "String::from(\"simhash\")")]
+    /// dedup strategy: exact, simhash (default: exact)
+    #[argh(option, default = "String::from(\"exact\")")]
     dedup_strategy: String,
 
     /// simhash hamming distance threshold (0=exact hash, 3=fuzzy, 5=aggressive; default: 3)
@@ -183,10 +183,14 @@ fn main() -> Result<()> {
     // Create the app
     let mut app = App::new(dataset);
 
-    // Set dedup field if specified (used by TUI's D key toggle)
+    // Set dedup config for TUI's D key toggle
     if let Some(ref field) = args.dedup_field {
         app.dedup_field = Some(field.clone());
     }
+    app.dedup_strategy = match args.dedup_strategy.as_str() {
+        "exact" => DedupStrategy::Exact,
+        _ => DedupStrategy::SimHash { threshold: args.dedup_threshold },
+    };
 
     // Load tokenizer if requested
     if let Some(ref tokenizer_path) = args.tokenizer_path {
@@ -369,11 +373,18 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                         app.should_quit = true;
                     }
 
-                    // j/k: scroll detail panel when open, otherwise scroll main list
-                    // When dedup group popup is open, navigate within the popup instead
+                    // j/k: context-dependent
+                    // - dedup group popup left panel: navigate list
+                    // - dedup group popup right panel: scroll detail
+                    // - detail panel open: scroll detail
+                    // - otherwise: scroll main list
                     (KeyCode::Char('j'), KeyModifiers::NONE) => {
                         if app.show_dedup_group {
-                            app.dedup_group_select_down();
+                            if app.dedup_group_focus_right {
+                                app.dedup_group_detail_scroll_down(1);
+                            } else {
+                                app.dedup_group_select_down();
+                            }
                         } else if app.show_detail {
                             app.detail_scroll_down(1);
                         } else {
@@ -382,7 +393,11 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                     }
                     (KeyCode::Char('k'), KeyModifiers::NONE) => {
                         if app.show_dedup_group {
-                            app.dedup_group_select_up();
+                            if app.dedup_group_focus_right {
+                                app.dedup_group_detail_scroll_up(1);
+                            } else {
+                                app.dedup_group_select_up();
+                            }
                         } else if app.show_detail {
                             app.detail_scroll_up(1);
                         } else {
@@ -390,12 +405,23 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                         }
                     }
 
-                    // Arrow keys always control the main list
+                    // Arrow keys: Up/Down always control main list
+                    // Left/Right switch dedup group popup panels when open
                     (KeyCode::Down, _) => {
                         app.scroll_down(1);
                     }
                     (KeyCode::Up, _) => {
                         app.scroll_up(1);
+                    }
+                    (KeyCode::Left, _) => {
+                        if app.show_dedup_group {
+                            app.dedup_group_focus_right = false;
+                        }
+                    }
+                    (KeyCode::Right, _) => {
+                        if app.show_dedup_group {
+                            app.dedup_group_focus_right = true;
+                        }
                     }
                     (KeyCode::Char('g'), _) => {
                         app.goto_top();
@@ -404,28 +430,36 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                         app.goto_bottom();
                     }
                     (KeyCode::Char('d'), KeyModifiers::CONTROL) => {
-                        if app.show_detail {
+                        if app.show_dedup_group && app.dedup_group_focus_right {
+                            app.dedup_group_detail_scroll_down(app.dedup_group_detail_viewport_height / 2);
+                        } else if app.show_detail {
                             app.detail_scroll_down(app.detail_viewport_height / 2);
                         } else {
                             app.scroll_down(app.viewport_height / 2);
                         }
                     }
                     (KeyCode::Char('u'), KeyModifiers::CONTROL) => {
-                        if app.show_detail {
+                        if app.show_dedup_group && app.dedup_group_focus_right {
+                            app.dedup_group_detail_scroll_up(app.dedup_group_detail_viewport_height / 2);
+                        } else if app.show_detail {
                             app.detail_scroll_up(app.detail_viewport_height / 2);
                         } else {
                             app.scroll_up(app.viewport_height / 2);
                         }
                     }
                     (KeyCode::PageDown, _) => {
-                        if app.show_detail {
+                        if app.show_dedup_group && app.dedup_group_focus_right {
+                            app.dedup_group_detail_scroll_down(app.dedup_group_detail_viewport_height);
+                        } else if app.show_detail {
                             app.detail_scroll_down(app.detail_viewport_height);
                         } else {
                             app.scroll_down(app.viewport_height);
                         }
                     }
                     (KeyCode::PageUp, _) => {
-                        if app.show_detail {
+                        if app.show_dedup_group && app.dedup_group_focus_right {
+                            app.dedup_group_detail_scroll_up(app.dedup_group_detail_viewport_height);
+                        } else if app.show_detail {
                             app.detail_scroll_up(app.detail_viewport_height);
                         } else {
                             app.scroll_up(app.viewport_height);
@@ -437,13 +471,9 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                         app.toggle_view_mode();
                     }
 
-                    // Toggle detail panel (or expand item in dedup group popup)
+                    // Toggle detail panel
                     (KeyCode::Enter, _) => {
-                        if app.show_dedup_group {
-                            app.dedup_group_toggle_expand();
-                        } else {
-                            app.toggle_detail();
-                        }
+                        app.toggle_detail();
                     }
 
                     // Toggle dedup scan (Shift+D)
