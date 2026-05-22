@@ -370,15 +370,20 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                     }
 
                     // j/k: scroll detail panel when open, otherwise scroll main list
+                    // When dedup group popup is open, navigate within the popup instead
                     (KeyCode::Char('j'), KeyModifiers::NONE) => {
-                        if app.show_detail {
+                        if app.show_dedup_group {
+                            app.dedup_group_select_down();
+                        } else if app.show_detail {
                             app.detail_scroll_down(1);
                         } else {
                             app.scroll_down(1);
                         }
                     }
                     (KeyCode::Char('k'), KeyModifiers::NONE) => {
-                        if app.show_detail {
+                        if app.show_dedup_group {
+                            app.dedup_group_select_up();
+                        } else if app.show_detail {
                             app.detail_scroll_up(1);
                         } else {
                             app.scroll_up(1);
@@ -432,9 +437,13 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                         app.toggle_view_mode();
                     }
 
-                    // Toggle detail panel
+                    // Toggle detail panel (or expand item in dedup group popup)
                     (KeyCode::Enter, _) => {
-                        app.toggle_detail();
+                        if app.show_dedup_group {
+                            app.dedup_group_toggle_expand();
+                        } else {
+                            app.toggle_detail();
+                        }
                     }
 
                     // Toggle dedup scan (Shift+D)
@@ -564,7 +573,7 @@ fn run_dedup_mode(args: &Args, dataset: &Dataset) -> Result<()> {
         eprintln!("Exported {} unique lines to {}", exported, export_path);
     }
 
-    // Export duplicate lines if requested
+    // Export duplicate lines if requested (one JSON object per group: {orig: {...}, dup: [{...}, ...]})
     if let Some(ref export_path) = args.dedup_export_dups {
         eprintln!("\nExporting duplicate lines to {}...", export_path);
 
@@ -572,18 +581,36 @@ fn run_dedup_mode(args: &Args, dataset: &Dataset) -> Result<()> {
             .with_context(|| format!("Failed to create export file: {}", export_path))?;
         let mut writer = BufWriter::new(file);
 
+        let groups = result.all_duplicate_groups();
         let mut exported = 0usize;
-        for i in 0..dataset.line_count() {
-            if result.is_duplicate(i) {
-                if let Some(line) = dataset.get_line(i) {
-                    writeln!(writer, "{}", line)?;
-                    exported += 1;
-                }
-            }
+
+        for (canonical_idx, dup_indices) in &groups {
+            // Parse ORIG line
+            let orig_value = dataset.get_line(*canonical_idx)
+                .and_then(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+                .unwrap_or(serde_json::Value::Null);
+
+            // Parse DUP lines
+            let dup_values: Vec<serde_json::Value> = dup_indices
+                .iter()
+                .filter_map(|&idx| {
+                    dataset.get_line(idx)
+                        .and_then(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+                })
+                .collect();
+
+            // Build group object: {"orig": {...}, "dup": [{...}, ...]}
+            let group_obj = serde_json::json!({
+                "orig": orig_value,
+                "dup": dup_values,
+            });
+
+            writeln!(writer, "{}", serde_json::to_string(&group_obj).unwrap_or_default())?;
+            exported += 1;
         }
 
         writer.flush()?;
-        eprintln!("Exported {} duplicate lines to {}", exported, export_path);
+        eprintln!("Exported {} groups to {}", exported, export_path);
     }
 
     Ok(())

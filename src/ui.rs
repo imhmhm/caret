@@ -399,7 +399,7 @@ fn render_help_popup(frame: &mut Frame, theme: &Theme) {
         ]),
         Line::from(vec![
             Span::styled("  O        ", Style::default().fg(theme.duplicate)),
-            Span::raw("Show duplicate group popup"),
+            Span::raw("Duplicate group popup (j/k:nav Enter:expand)"),
         ]),
         Line::from(""),
         Line::from(vec![
@@ -445,7 +445,7 @@ fn wrapped_line_count(lines: &[Line<'_>], available_width: u16) -> usize {
     total
 }
 
-/// Render dedup group popup showing all lines in the same duplicate group
+/// Render dedup group popup: left panel = group list, right panel = expanded detail
 fn render_dedup_group_popup(frame: &mut Frame, app: &App, theme: &Theme) {
     let Some(ref dedup_result) = app.dedup_result else {
         return;
@@ -456,77 +456,70 @@ fn render_dedup_group_popup(frame: &mut Frame, app: &App, theme: &Theme) {
         return; // Not part of a duplicate group
     }
 
+    // Clamp selection to valid range
+    let selected = app.dedup_group_selected.min(group.len() - 1);
+
     let canonical = dedup_result.canonical_line(app.selected_line);
-    let area = centered_rect(60, 70, frame.area());
+
+    // Use full-width popup, split into left (list) and right (detail)
+    let area = centered_rect(90, 80, frame.area());
     frame.render_widget(Clear, area);
 
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+        .split(area);
+
+    // === Left panel: group list ===
     let mut lines = Vec::new();
 
     // Header
     lines.push(Line::from(Span::styled(
-        format!("Duplicate Group (canonical: line {})", canonical + 1),
+        format!("Group (canonical: L{})", canonical + 1),
         Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
     )));
     lines.push(Line::from(""));
 
-    // List all lines in the group
-    for &line_idx in &group {
+    for (i, &line_idx) in group.iter().enumerate() {
         let is_canonical = line_idx == canonical;
-        let is_selected = line_idx == app.selected_line;
+        let is_selected = i == selected;
+        let is_expanded = app.dedup_group_expanded == Some(i);
 
-        let tag = if is_canonical {
-            "ORIG"
-        } else {
-            "DUP "
-        };
+        let tag = if is_canonical { "ORIG" } else { "DUP" };
+        let tag_color = if is_canonical { theme.accent } else { theme.duplicate };
+        let marker = if is_expanded { "▾" } else if is_selected { "▸" } else { " " };
 
-        let tag_color = if is_canonical {
-            theme.accent
-        } else {
-            theme.duplicate
-        };
-
-        let marker = if is_selected {
-            "▶"
-        } else {
-            " "
-        };
-
-        // Get a preview of the line content
         let preview = app.dataset.get_line(line_idx)
             .map(|l| {
-                let s: String = l.chars().take(80).collect();
-                if l.len() > 80 { format!("{}...", s) } else { s }
+                let s: String = l.chars().take(50).collect();
+                if l.len() > 50 { format!("{}...", s) } else { s }
             })
             .unwrap_or_default();
 
+        let bg = if is_selected { theme.highlight } else { theme.bg };
+        let fg = if is_selected { theme.fg } else { theme.muted };
+
         lines.push(Line::from(vec![
+            Span::styled(format!("{} ", marker), Style::default().fg(theme.fg)),
             Span::styled(
-                format!(" {} ", marker),
-                Style::default().fg(theme.fg),
-            ),
-            Span::styled(
-                format!("{:>6} ", line_idx + 1),
+                format!("L{:>5} ", line_idx + 1),
                 Style::default().fg(tag_color),
             ),
             Span::styled(
                 format!("[{}] ", tag),
                 Style::default().fg(tag_color).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(
-                preview,
-                Style::default().fg(if is_selected { theme.fg } else { theme.muted }),
-            ),
+            Span::styled(preview, Style::default().fg(fg).bg(bg)),
         ]));
     }
 
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
-        format!("{} lines in this group", group.len()),
+        format!("{} lines │ j/k:nav Enter:expand", group.len()),
         Style::default().fg(theme.muted),
     )));
 
-    let popup = Paragraph::new(lines)
+    let left_panel = Paragraph::new(lines)
         .block(
             Block::default()
                 .title(Span::styled(" Dedup Group ", Style::default().fg(theme.accent)))
@@ -536,7 +529,65 @@ fn render_dedup_group_popup(frame: &mut Frame, app: &App, theme: &Theme) {
         )
         .wrap(Wrap { trim: false });
 
-    frame.render_widget(popup, area);
+    frame.render_widget(left_panel, chunks[0]);
+
+    // === Right panel: expanded detail of selected item ===
+    let expanded_idx = app.dedup_group_expanded.or(Some(selected));
+    let detail_lines = if let Some(idx) = expanded_idx {
+        if let Some(&line_idx) = group.get(idx) {
+            let is_canonical = line_idx == canonical;
+            let tag = if is_canonical { "ORIG" } else { "DUP" };
+            let tag_color = if is_canonical { theme.accent } else { theme.duplicate };
+
+            let mut detail = Vec::new();
+            detail.push(Line::from(vec![
+                Span::styled(
+                    format!("Line {} ", line_idx + 1),
+                    Style::default().fg(theme.fg).add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!("[{}]", tag),
+                    Style::default().fg(tag_color).add_modifier(Modifier::BOLD),
+                ),
+            ]));
+            detail.push(Line::from(""));
+
+            // Pretty-print the JSON content
+            if let Some(line) = app.dataset.get_line(line_idx) {
+                let pretty = if let Ok(value) = serde_json::from_str::<serde_json::Value>(line) {
+                    serde_json::to_string_pretty(&value).unwrap_or_else(|_| line.to_string())
+                } else {
+                    line.to_string()
+                };
+                for l in pretty.lines() {
+                    detail.push(highlight_json(l, theme));
+                }
+            }
+            detail
+        } else {
+            vec![Line::from(Span::styled(
+                "No data",
+                Style::default().fg(theme.muted),
+            ))]
+        }
+    } else {
+        vec![Line::from(Span::styled(
+            "Press Enter to expand",
+            Style::default().fg(theme.muted),
+        ))]
+    };
+
+    let right_panel = Paragraph::new(detail_lines)
+        .block(
+            Block::default()
+                .title(Span::styled(" Detail ", Style::default().fg(theme.accent)))
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border))
+                .style(Style::default().bg(theme.bg)),
+        )
+        .wrap(Wrap { trim: false });
+
+    frame.render_widget(right_panel, chunks[1]);
 }
 
 /// Render the detail panel showing pretty-printed JSON

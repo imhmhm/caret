@@ -393,6 +393,20 @@ impl DedupResult {
             self.canonical_map.iter().filter(|&&c| c == canonical).count()
         }
     }
+
+    /// Get all duplicate groups, sorted by canonical line index.
+    /// Each group is (canonical_line_idx, Vec<duplicate_line_idx>).
+    /// Only includes groups that have at least one duplicate.
+    pub fn all_duplicate_groups(&self) -> Vec<(usize, Vec<usize>)> {
+        use std::collections::BTreeMap;
+        let mut groups: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        for (i, &canonical) in self.canonical_map.iter().enumerate() {
+            if i != canonical {
+                groups.entry(canonical).or_default().push(i);
+            }
+        }
+        groups.into_iter().collect()
+    }
 }
 
 // ─── DedupEngine ────────────────────────────────────────────────────────────

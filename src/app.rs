@@ -54,6 +54,10 @@ pub struct App {
     pub dedup_field: Option<String>,
     /// Whether to show the dedup group popup
     pub show_dedup_group: bool,
+    /// Selected index within the dedup group popup list
+    pub dedup_group_selected: usize,
+    /// Index of the currently expanded item in the dedup group popup (None = collapsed)
+    pub dedup_group_expanded: Option<usize>,
     /// Whether to show the help popup
     pub show_help: bool,
     /// Whether the app should quit
@@ -90,6 +94,8 @@ impl App {
             dedup_result: None,
             dedup_field: None,
             show_dedup_group: false,
+            dedup_group_selected: 0,
+            dedup_group_expanded: None,
             show_help: false,
             should_quit: false,
             selected_line: 0,
@@ -140,6 +146,30 @@ impl App {
     pub fn toggle_dedup_group(&mut self) {
         if self.dedup_result.is_some() {
             self.show_dedup_group = !self.show_dedup_group;
+            self.dedup_group_selected = 0;
+            self.dedup_group_expanded = None;
+        }
+    }
+
+    /// Move selection up in the dedup group popup
+    pub fn dedup_group_select_up(&mut self) {
+        if self.dedup_group_selected > 0 {
+            self.dedup_group_selected -= 1;
+        }
+    }
+
+    /// Move selection down in the dedup group popup
+    pub fn dedup_group_select_down(&mut self) {
+        // Bounds checked in render via group.len()
+        self.dedup_group_selected = self.dedup_group_selected.saturating_add(1);
+    }
+
+    /// Toggle expand/collapse of the selected item in the dedup group popup
+    pub fn dedup_group_toggle_expand(&mut self) {
+        if self.dedup_group_expanded == Some(self.dedup_group_selected) {
+            self.dedup_group_expanded = None;
+        } else {
+            self.dedup_group_expanded = Some(self.dedup_group_selected);
         }
     }
 
