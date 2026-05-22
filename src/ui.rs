@@ -223,12 +223,16 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     };
 
     let dedup_status = if let Some(ref result) = app.dedup_result {
+        let field_info = app.dedup_field.as_deref().unwrap_or("all");
         format!(
-            " {} dups ({:.0}%) {:.0}ms ",
+            " {} dups ({:.0}%) {:.0}ms [{}] ",
             result.duplicate_count,
             result.dedup_ratio() * 100.0,
             result.elapsed_us as f64 / 1000.0,
+            field_info,
         )
+    } else if app.dedup_field.is_some() {
+        format!(" dedup-field:{} ", app.dedup_field.as_deref().unwrap())
     } else {
         String::new()
     };

@@ -136,6 +136,9 @@ caret data.jsonl --dedup                              # Scan and report
 caret data.jsonl --dedup --dedup-export clean.jsonl   # Export unique lines
 caret data.jsonl --dedup --dedup-strategy exact        # Exact match
 caret data.jsonl --dedup --dedup-threshold 5           # Aggressive fuzzy
+caret data.jsonl --dedup --dedup-field prompt          # Dedup by specific field
+caret data.jsonl --dedup --dedup-field messages.content # Nested field (dot-notation)
+caret data.jsonl --dedup-field prompt                  # TUI mode: D key uses this field
 
 # Linting
 caret data.jsonl --lint

@@ -246,6 +246,44 @@ fn extract_content_bytes(data: &[u8]) -> Vec<u8> {
     result
 }
 
+// ─── Field Extraction ──────────────────────────────────────────────────────
+
+/// Extract a specific JSON field's content by dot-notation path.
+///
+/// Uses `serde_json` for correct parsing. For field-specific dedup this is
+/// acceptable overhead — dedup is a batch operation, not per-frame rendering.
+///
+/// - String values: returns the raw string content (without quotes)
+/// - Object/Array values: returns the pretty-printed JSON
+/// - Non-existent paths: returns empty vec (caller should fall back)
+fn extract_field_bytes(data: &[u8], field_path: &str) -> Vec<u8> {
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(data) else {
+        return Vec::new();
+    };
+
+    let Some(field_value) = walk_json_path(&value, field_path) else {
+        return Vec::new();
+    };
+
+    match field_value {
+        serde_json::Value::String(s) => s.as_bytes().to_vec(),
+        other => serde_json::to_string_pretty(other)
+            .unwrap_or_default()
+            .into_bytes(),
+    }
+}
+
+/// Walk a dot-notation path through a JSON value.
+/// e.g. "prompt" -> value["prompt"]
+///      "messages.content" -> value["messages"]["content"]
+fn walk_json_path<'a>(value: &'a serde_json::Value, path: &str) -> Option<&'a serde_json::Value> {
+    let mut current = value;
+    for key in path.split('.') {
+        current = current.get(key)?;
+    }
+    Some(current)
+}
+
 // ─── Strategy ───────────────────────────────────────────────────────────────
 
 /// Deduplication strategy.
@@ -342,6 +380,8 @@ impl DedupResult {
 pub struct DedupEngine {
     hasher: SimHasher,
     strategy: DedupStrategy,
+    /// Optional JSON field path for field-specific dedup (dot-notation, e.g. "prompt", "messages.content")
+    field: Option<String>,
 }
 
 impl DedupEngine {
@@ -349,11 +389,19 @@ impl DedupEngine {
         Self {
             hasher: SimHasher::default(),
             strategy,
+            field: None,
         }
     }
 
     pub fn with_shingle_size(mut self, size: usize) -> Self {
         self.hasher = SimHasher::new(size);
+        self
+    }
+
+    /// Set the JSON field path for field-specific deduplication.
+    /// Uses dot-notation for nested fields (e.g. "prompt", "messages.content").
+    pub fn with_field(mut self, field: String) -> Self {
+        self.field = Some(field);
         self
     }
 
@@ -383,17 +431,38 @@ impl DedupEngine {
         // ── Phase 1: Parallel fingerprinting ──────────────────────────
         // Each rayon worker reads directly from the mmap.
         // No copies, no allocations (except the fingerprint Vec itself).
+        let field = self.field.clone(); // Clone once, move into closure
         let fingerprints: Vec<Fingerprint> = (0..line_count)
             .into_par_iter()
             .map(|i| {
                 let line = dataset.get_line(i).unwrap_or("");
                 match self.strategy {
                     DedupStrategy::Exact => {
-                        Fingerprint(self.hasher.hash_bytes(line.as_bytes()))
+                        if let Some(ref f) = field {
+                            let content = extract_field_bytes(line.as_bytes(), f);
+                            if content.is_empty() {
+                                Fingerprint(self.hasher.hash_bytes(line.as_bytes()))
+                            } else {
+                                Fingerprint(self.hasher.hash_bytes(&content))
+                            }
+                        } else {
+                            Fingerprint(self.hasher.hash_bytes(line.as_bytes()))
+                        }
                     }
                     DedupStrategy::SimHash { .. } => {
-                        let content = extract_content_bytes(line.as_bytes());
-                        self.hasher.fingerprint(&content)
+                        if let Some(ref f) = field {
+                            let content = extract_field_bytes(line.as_bytes(), f);
+                            if content.is_empty() {
+                                // Field not found: fall back to all-content extraction
+                                let fallback = extract_content_bytes(line.as_bytes());
+                                self.hasher.fingerprint(&fallback)
+                            } else {
+                                self.hasher.fingerprint(&content)
+                            }
+                        } else {
+                            let content = extract_content_bytes(line.as_bytes());
+                            self.hasher.fingerprint(&content)
+                        }
                     }
                 }
             })
@@ -575,5 +644,41 @@ mod tests {
     fn test_dedup_strategy_display() {
         assert_eq!(format!("{}", DedupStrategy::Exact), "exact");
         assert_eq!(format!("{}", DedupStrategy::SimHash { threshold: 3 }), "simhash(t=3)");
+    }
+
+    #[test]
+    fn test_extract_field_bytes_top_level() {
+        let json = br#"{"prompt":"hello world","response":"goodbye moon"}"#;
+        let content = extract_field_bytes(json, "prompt");
+        let text = String::from_utf8(content).unwrap();
+        assert_eq!(text, "hello world");
+
+        let content = extract_field_bytes(json, "response");
+        let text = String::from_utf8(content).unwrap();
+        assert_eq!(text, "goodbye moon");
+    }
+
+    #[test]
+    fn test_extract_field_bytes_nested() {
+        let json = br#"{"messages":{"role":"user","content":"What is Rust?"}}"#;
+        let content = extract_field_bytes(json, "messages.content");
+        let text = String::from_utf8(content).unwrap();
+        assert_eq!(text, "What is Rust?");
+    }
+
+    #[test]
+    fn test_extract_field_bytes_missing_field() {
+        let json = br#"{"prompt":"hello"}"#;
+        let content = extract_field_bytes(json, "nonexistent");
+        assert!(content.is_empty());
+    }
+
+    #[test]
+    fn test_extract_field_bytes_non_string() {
+        let json = br#"{"data":{"x":1,"y":2}}"#;
+        let content = extract_field_bytes(json, "data");
+        let text = String::from_utf8(content).unwrap();
+        assert!(text.contains("\"x\""));
+        assert!(text.contains("\"y\""));
     }
 }

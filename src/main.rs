@@ -94,6 +94,10 @@ struct Args {
     #[argh(option)]
     dedup_export: Option<String>,
 
+    /// JSON field to use for deduplication, dot-notation (e.g. "prompt", "messages.content")
+    #[argh(option)]
+    dedup_field: Option<String>,
+
     /// start MCP server on this port (exposes dataset as tools/resources to LLMs)
     #[argh(option, default = "0")]
     mcp_port: u16,
@@ -174,6 +178,11 @@ fn main() -> Result<()> {
 
     // Create the app
     let mut app = App::new(dataset);
+
+    // Set dedup field if specified (used by TUI's D key toggle)
+    if let Some(ref field) = args.dedup_field {
+        app.dedup_field = Some(field.clone());
+    }
 
     // Load tokenizer if requested
     if let Some(ref tokenizer_path) = args.tokenizer_path {
@@ -512,8 +521,13 @@ fn run_dedup_mode(args: &Args, dataset: &Dataset) -> Result<()> {
         },
     };
 
-    eprintln!("Running dedup scan ({})...", strategy);
-    let engine = DedupEngine::new(strategy);
+    let field_info = args.dedup_field.as_deref().unwrap_or("all content");
+    eprintln!("Running dedup scan ({}, field: {})...", strategy, field_info);
+
+    let mut engine = DedupEngine::new(strategy);
+    if let Some(ref field) = args.dedup_field {
+        engine = engine.with_field(field.clone());
+    }
     let result = engine.scan(dataset);
 
     eprintln!("\nDedup Results:");

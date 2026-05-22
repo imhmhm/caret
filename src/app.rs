@@ -50,6 +50,8 @@ pub struct App {
     pub lint_results: Vec<LintResult>,
     /// Deduplication scan results (None if no scan has been run)
     pub dedup_result: Option<DedupResult>,
+    /// Optional JSON field path for field-specific dedup (dot-notation)
+    pub dedup_field: Option<String>,
     /// Whether to show the help popup
     pub show_help: bool,
     /// Whether the app should quit
@@ -84,6 +86,7 @@ impl App {
             tokenizer: None,
             lint_results: Vec::new(),
             dedup_result: None,
+            dedup_field: None,
             show_help: false,
             should_quit: false,
             selected_line: 0,
@@ -115,11 +118,15 @@ impl App {
     }
 
     /// Toggle dedup scan: run if no result, clear if already scanned.
+    /// Uses `dedup_field` if set for field-specific dedup.
     pub fn toggle_dedup(&mut self) {
         if self.dedup_result.is_some() {
             self.dedup_result = None;
         } else {
-            let engine = DedupEngine::new(DedupStrategy::SimHash { threshold: 3 });
+            let mut engine = DedupEngine::new(DedupStrategy::SimHash { threshold: 3 });
+            if let Some(ref field) = self.dedup_field {
+                engine = engine.with_field(field.clone());
+            }
             let result = engine.scan(&self.dataset);
             self.dedup_result = Some(result);
         }
