@@ -367,8 +367,28 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                     continue;
                 }
 
+                // Search mode: intercept all keys for search input
+                if app.search_mode {
+                    match key.code {
+                        KeyCode::Enter => {
+                            app.execute_search();
+                        }
+                        KeyCode::Esc => {
+                            app.exit_search();
+                        }
+                        KeyCode::Backspace => {
+                            app.search_backspace();
+                        }
+                        KeyCode::Char(c) => {
+                            app.search_push_char(c);
+                        }
+                        _ => {}
+                    }
+                    continue;
+                }
+
                 match (key.code, key.modifiers) {
-                    // Quit
+                    // Quit (Esc also quits in normal mode)
                     (KeyCode::Char('q'), _) | (KeyCode::Esc, _) => {
                         app.should_quit = true;
                     }
@@ -493,6 +513,17 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                     // Toggle help
                     (KeyCode::Char('?'), _) => {
                         app.show_help = !app.show_help;
+                    }
+
+                    // Search
+                    (KeyCode::Char('/'), _) => {
+                        app.enter_search();
+                    }
+                    (KeyCode::Char('n'), _) => {
+                        app.next_search_match();
+                    }
+                    (KeyCode::Char('N'), _) => {
+                        app.prev_search_match();
                     }
 
                     _ => {}

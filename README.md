@@ -106,6 +106,8 @@ The engine works in two phases: parallel fingerprinting (workers read directly f
 | `Tab` | Cycle view: Text / Token X-Ray / Tree |
 | `Enter` | Toggle detail panel |
 | `←` / `→` (or `h` / `l`) | Navigate tokens (Token X-Ray mode with detail open) |
+| `/` | Search (vim-style, case-insensitive) |
+| `n` / `N` | Next / previous search match |
 | `D` | Toggle dedup scan |
 | `O` | Show duplicate group popup |
 | `?` | Help |

@@ -45,34 +45,45 @@ impl Default for Theme {
 pub fn render(frame: &mut Frame, app: &mut App) {
     let theme = Theme::default();
 
-    // Update viewport height based on frame size
-    app.set_viewport_height(frame.area().height as usize);
+    // Main layout: content area + (search bar if active) + status bar
+    let main_chunks = if app.search_mode {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(3), Constraint::Length(3), Constraint::Length(3)])
+            .split(frame.area())
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(3), Constraint::Length(3)])
+            .split(frame.area())
+    };
 
-    // Main layout: content area + status bar
-    let main_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(3), Constraint::Length(3)])
-        .split(frame.area());
+    let content_area = main_chunks[0];
+    let status_area = *main_chunks.last().unwrap();
+
+    // Update viewport height based on content area size
+    app.set_viewport_height(content_area.height as usize);
 
     // If detail panel is visible, split content area horizontally
     if app.show_detail {
         let content_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(main_chunks[0]);
+            .split(content_area);
 
-        // Render list on left
         render_content(frame, app, content_chunks[0], &theme);
-
-        // Render detail panel on right
         render_detail_panel(frame, app, content_chunks[1], &theme);
     } else {
-        // Render main content area (full width)
-        render_content(frame, app, main_chunks[0], &theme);
+        render_content(frame, app, content_area, &theme);
+    }
+
+    // Render search bar if in search mode
+    if app.search_mode {
+        render_search_bar(frame, app, main_chunks[1], &theme);
     }
 
     // Render status bar
-    render_status_bar(frame, app, main_chunks[1], &theme);
+    render_status_bar(frame, app, status_area, &theme);
 
     // Render help popup if visible
     if app.show_help {
@@ -197,6 +208,10 @@ fn render_content(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
             // Highlight selected line
             let style = if line_idx == app.selected_line {
                 Style::default().bg(theme.highlight)
+            } else if app.line_is_current_search_match(line_idx) {
+                Style::default().bg(Color::Rgb(80, 60, 30)) // Warm highlight for current match
+            } else if app.line_is_search_match(line_idx) {
+                Style::default().bg(Color::Rgb(55, 55, 40)) // Dim highlight for other matches
             } else {
                 Style::default()
             };
@@ -228,6 +243,31 @@ fn render_content(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     );
 
     frame.render_widget(list, area);
+}
+
+/// Render the search input bar
+fn render_search_bar(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
+    let cursor = "█";
+    let search_line = Line::from(vec![
+        Span::styled(
+            " /",
+            Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!("{}{}", app.search_query, cursor),
+            Style::default().fg(theme.fg),
+        ),
+    ]);
+
+    let search_bar = Paragraph::new(search_line)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.accent))
+                .style(Style::default().bg(theme.bg)),
+        );
+
+    frame.render_widget(search_bar, area);
 }
 
 /// Render the status bar
@@ -297,6 +337,17 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
         spans.push(Span::styled(dedup_status, dedup_style));
     }
 
+    if !app.search_matches.is_empty() {
+        let search_status = format!(
+            " /{} {}/{} ",
+            app.search_query,
+            app.search_current_idx + 1,
+            app.search_matches.len(),
+        );
+        spans.push(Span::styled("|", Style::default().fg(theme.border)));
+        spans.push(Span::styled(search_status, Style::default().fg(theme.accent)));
+    }
+
     spans.push(Span::styled("|", Style::default().fg(theme.border)));
     spans.push(Span::styled(position, Style::default().fg(theme.fg)));
     spans.push(Span::styled("|", Style::default().fg(theme.border)));
@@ -358,6 +409,25 @@ fn render_help_popup(frame: &mut Frame, theme: &Theme) {
         Line::from(vec![
             Span::styled("  Ctrl+u   ", Style::default().fg(theme.warning)),
             Span::raw("Page up"),
+        ]),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Search",
+            Style::default()
+                .fg(Color::Rgb(255, 184, 108))
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(vec![
+            Span::styled("  /        ", Style::default().fg(Color::Rgb(255, 184, 108))),
+            Span::raw("Enter search mode"),
+        ]),
+        Line::from(vec![
+            Span::styled("  n / N    ", Style::default().fg(Color::Rgb(255, 184, 108))),
+            Span::raw("Next / previous match"),
+        ]),
+        Line::from(vec![
+            Span::styled("  Esc      ", Style::default().fg(Color::Rgb(255, 184, 108))),
+            Span::raw("Cancel search input"),
         ]),
         Line::from(""),
         Line::from(Span::styled(

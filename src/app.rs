@@ -80,6 +80,14 @@ pub struct App {
     pub detail_viewport_height: usize,
     /// Total number of lines in the detail panel content (cached during render)
     pub detail_content_lines: usize,
+    /// Whether the app is in search input mode
+    pub search_mode: bool,
+    /// Current search query string
+    pub search_query: String,
+    /// Line indices that match the search query
+    pub search_matches: Vec<usize>,
+    /// Current index into search_matches (0-based)
+    pub search_current_idx: usize,
     /// Tree expansion state for JSON tree view
     #[allow(dead_code)]
     pub tree_expanded: std::collections::HashSet<String>,
@@ -115,6 +123,10 @@ impl App {
             detail_scroll: 0,
             detail_viewport_height: 0,
             detail_content_lines: 0,
+            search_mode: false,
+            search_query: String::new(),
+            search_matches: Vec::new(),
+            search_current_idx: 0,
             tree_expanded: std::collections::HashSet::new(),
             selected_token: 0,
             token_count: 0,
@@ -323,5 +335,95 @@ impl App {
     /// Scroll the detail panel up by n lines
     pub fn detail_scroll_up(&mut self, n: usize) {
         self.detail_scroll = self.detail_scroll.saturating_sub(n);
+    }
+
+    // ─── Search ──────────────────────────────────────────────────────
+
+    /// Enter search input mode
+    pub fn enter_search(&mut self) {
+        self.search_mode = true;
+        self.search_query.clear();
+        self.search_matches.clear();
+        self.search_current_idx = 0;
+    }
+
+    /// Exit search mode (keep matches for n/N navigation)
+    pub fn exit_search(&mut self) {
+        self.search_mode = false;
+    }
+
+    /// Append a character to the search query
+    pub fn search_push_char(&mut self, c: char) {
+        self.search_query.push(c);
+    }
+
+    /// Delete the last character from the search query
+    pub fn search_backspace(&mut self) {
+        self.search_query.pop();
+    }
+
+    /// Execute the search: find all lines matching the query (case-insensitive)
+    pub fn execute_search(&mut self) {
+        self.search_mode = false;
+        if self.search_query.is_empty() {
+            self.search_matches.clear();
+            return;
+        }
+        let query_lower = self.search_query.to_lowercase();
+        self.search_matches = (0..self.dataset.line_count())
+            .filter(|&i| {
+                self.dataset.get_line(i)
+                    .map(|l| l.to_lowercase().contains(&query_lower))
+                    .unwrap_or(false)
+            })
+            .collect();
+        self.search_current_idx = 0;
+        // Jump to first match
+        self.jump_to_search_match();
+    }
+
+    /// Jump to the current search match, adjusting scroll
+    fn jump_to_search_match(&mut self) {
+        if let Some(&line_idx) = self.search_matches.get(self.search_current_idx) {
+            self.selected_line = line_idx;
+            // Center the match in the viewport
+            if self.selected_line < self.viewport_height / 2 {
+                self.scroll = 0;
+            } else {
+                self.scroll = self.selected_line - self.viewport_height / 2;
+            }
+        }
+    }
+
+    /// Jump to next search match
+    pub fn next_search_match(&mut self) {
+        if self.search_matches.is_empty() {
+            return;
+        }
+        self.search_current_idx = (self.search_current_idx + 1) % self.search_matches.len();
+        self.jump_to_search_match();
+    }
+
+    /// Jump to previous search match
+    pub fn prev_search_match(&mut self) {
+        if self.search_matches.is_empty() {
+            return;
+        }
+        if self.search_current_idx == 0 {
+            self.search_current_idx = self.search_matches.len() - 1;
+        } else {
+            self.search_current_idx -= 1;
+        }
+        self.jump_to_search_match();
+    }
+
+    /// Check if a line is a search match
+    pub fn line_is_search_match(&self, line_index: usize) -> bool {
+        self.search_matches.contains(&line_index)
+    }
+
+    /// Check if a line is the current search match
+    pub fn line_is_current_search_match(&self, line_index: usize) -> bool {
+        self.search_matches.get(self.search_current_idx) == Some(&line_index)
     }
 }
