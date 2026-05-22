@@ -340,8 +340,8 @@ fn render_help_popup(frame: &mut Frame, theme: &Theme) {
             Span::raw("Move between lines"),
         ]),
         Line::from(vec![
-            Span::styled("  j / k    ", Style::default().fg(theme.warning)),
-            Span::raw("Scroll detail (or move if closed)"),
+            Span::styled("  d / f    ", Style::default().fg(theme.warning)),
+            Span::raw("Scroll detail / move (d=up f=down)"),
         ]),
         Line::from(vec![
             Span::styled("  g        ", Style::default().fg(theme.warning)),
@@ -375,7 +375,7 @@ fn render_help_popup(frame: &mut Frame, theme: &Theme) {
             Span::raw("Toggle detail panel (pretty JSON)"),
         ]),
         Line::from(vec![
-            Span::styled("  j / k    ", Style::default().fg(theme.accent)),
+            Span::styled("  d / f    ", Style::default().fg(theme.accent)),
             Span::raw("Scroll detail panel"),
         ]),
         Line::from(vec![
@@ -399,7 +399,7 @@ fn render_help_popup(frame: &mut Frame, theme: &Theme) {
         ]),
         Line::from(vec![
             Span::styled("  O        ", Style::default().fg(theme.duplicate)),
-            Span::raw("Duplicate group popup (←/→:switch j/k:scroll)"),
+            Span::raw("Duplicate group popup (←/→:switch d/f:scroll)"),
         ]),
         Line::from(""),
         Line::from(vec![

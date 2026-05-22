@@ -373,12 +373,12 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                         app.should_quit = true;
                     }
 
-                    // j/k: context-dependent
+                    // d/f: context-dependent (d=up, f=down)
                     // - dedup group popup left panel: navigate list
                     // - dedup group popup right panel: scroll detail
                     // - detail panel open: scroll detail
                     // - otherwise: scroll main list
-                    (KeyCode::Char('j'), KeyModifiers::NONE) => {
+                    (KeyCode::Char('f'), KeyModifiers::NONE) => {
                         if app.show_dedup_group {
                             if app.dedup_group_focus_right {
                                 app.dedup_group_detail_scroll_down(1);
@@ -391,7 +391,7 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                             app.scroll_down(1);
                         }
                     }
-                    (KeyCode::Char('k'), KeyModifiers::NONE) => {
+                    (KeyCode::Char('d'), KeyModifiers::NONE) => {
                         if app.show_dedup_group {
                             if app.dedup_group_focus_right {
                                 app.dedup_group_detail_scroll_up(1);

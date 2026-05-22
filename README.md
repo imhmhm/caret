@@ -99,7 +99,7 @@ The engine works in two phases: parallel fingerprinting (workers read directly f
 | Key | Action |
 |-----|--------|
 | `↑` / `↓` | Move between data lines (always controls main list) |
-| `j` / `k` | Scroll detail panel when open, otherwise move main list |
+| `d` / `f` | Up / Down: scroll detail panel when open, otherwise move main list |
 | `g` / `G` | Top / Bottom of main list |
 | `Ctrl+d` / `Ctrl+u` | Half-page scroll (detail panel if open, otherwise main list) |
 | `PageDown` / `PageUp` | Full-page scroll (detail panel if open, otherwise main list) |
@@ -111,7 +111,7 @@ The engine works in two phases: parallel fingerprinting (workers read directly f
 | `?` | Help |
 | `q` / `Esc` | Quit |
 
-> Tip: when the detail panel is open, use `↑`/`↓` to switch the inspected record on the left, and `j`/`k` (or `Ctrl+d`/`Ctrl+u`, `PageDown`/`PageUp`) to scroll the JSON content on the right. Switching records automatically resets the detail panel scroll position.
+> Tip: when the detail panel is open, use `↑`/`↓` to switch the inspected record on the left, and `d`/`f` (or `Ctrl+d`/`Ctrl+u`, `PageDown`/`PageUp`) to scroll the JSON content on the right. Switching records automatically resets the detail panel scroll position.
 
 ## Usage Reference
 
