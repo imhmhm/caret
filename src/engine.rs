@@ -362,6 +362,37 @@ impl DedupResult {
             self.strategy,
         )
     }
+
+    /// Get the canonical (first-seen) line index for a given line.
+    /// For non-duplicate lines, returns the line's own index.
+    pub fn canonical_line(&self, line_index: usize) -> usize {
+        self.canonical_map.get(line_index).copied().unwrap_or(line_index)
+    }
+
+    /// Get all lines in the same duplicate group as the given line.
+    /// Returns a sorted vector of line indices that share the same canonical line.
+    /// Includes the canonical line itself as the first element.
+    pub fn get_duplicate_group(&self, line_index: usize) -> Vec<usize> {
+        let canonical = self.canonical_line(line_index);
+        let mut group: Vec<usize> = (0..self.total_lines)
+            .filter(|&i| self.canonical_line(i) == canonical)
+            .collect();
+        group.sort_unstable();
+        group
+    }
+
+    /// Count how many duplicate lines point to the same canonical line as the given line.
+    /// Fast: O(1) per line using canonical_map + duplicates bitmask.
+    pub fn canonical_group_size(&self, line_index: usize) -> usize {
+        let canonical = self.canonical_line(line_index);
+        if canonical == line_index {
+            // This is the canonical line — count how many lines point to it
+            self.canonical_map.iter().filter(|&&c| c == canonical).count()
+        } else {
+            // This is a duplicate — count lines pointing to the same canonical
+            self.canonical_map.iter().filter(|&&c| c == canonical).count()
+        }
+    }
 }
 
 // ─── DedupEngine ────────────────────────────────────────────────────────────

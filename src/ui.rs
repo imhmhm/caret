@@ -78,6 +78,11 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     if app.show_help {
         render_help_popup(frame, &theme);
     }
+
+    // Render dedup group popup if visible
+    if app.show_dedup_group {
+        render_dedup_group_popup(frame, app, &theme);
+    }
 }
 
 /// Render the main content area with dataset lines
@@ -117,14 +122,17 @@ fn render_content(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                     ),
                 ])
             } else if app.line_is_duplicate(line_idx) {
-                // Duplicate line - highlight in amber
+                // Duplicate line - highlight in amber, show canonical line number
+                let canonical = app.dedup_result.as_ref()
+                    .map(|r| r.canonical_line(line_idx))
+                    .unwrap_or(line_idx);
                 Line::from(vec![
                     Span::styled(
                         format!("{:>6} │ ", line_idx + 1),
                         Style::default().fg(theme.duplicate),
                     ),
                     Span::styled(
-                        "DUP ",
+                        format!("DUP→{} ", canonical + 1),
                         Style::default()
                             .fg(Color::Rgb(40, 42, 54))
                             .bg(theme.duplicate)
@@ -134,6 +142,27 @@ fn render_content(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
                         truncated,
                         Style::default().fg(theme.duplicate),
                     ),
+                ])
+            } else if app.dedup_result.as_ref().is_some_and(|r| {
+                // Canonical (origin) line that has duplicates pointing to it
+                !r.is_duplicate(line_idx) && r.canonical_group_size(line_idx) > 1
+            }) {
+                let dup_count = app.dedup_result.as_ref()
+                    .map(|r| r.canonical_group_size(line_idx) - 1)
+                    .unwrap_or(0);
+                Line::from(vec![
+                    Span::styled(
+                        format!("{:>6} │ ", line_idx + 1),
+                        Style::default().fg(theme.accent),
+                    ),
+                    Span::styled(
+                        format!("ORIG×{} ", dup_count),
+                        Style::default()
+                            .fg(Color::Rgb(40, 42, 54))
+                            .bg(theme.accent)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(truncated, Style::default().fg(theme.fg)),
                 ])
             } else if app.view_mode == ViewMode::TokenXray {
                 // Token X-Ray mode
@@ -368,6 +397,10 @@ fn render_help_popup(frame: &mut Frame, theme: &Theme) {
             Span::styled("  D        ", Style::default().fg(theme.duplicate)),
             Span::raw("Toggle dedup scan (SimHash)"),
         ]),
+        Line::from(vec![
+            Span::styled("  O        ", Style::default().fg(theme.duplicate)),
+            Span::raw("Show duplicate group popup"),
+        ]),
         Line::from(""),
         Line::from(vec![
             Span::styled("  ?        ", Style::default().fg(theme.muted)),
@@ -410,6 +443,100 @@ fn wrapped_line_count(lines: &[Line<'_>], available_width: u16) -> usize {
         }
     }
     total
+}
+
+/// Render dedup group popup showing all lines in the same duplicate group
+fn render_dedup_group_popup(frame: &mut Frame, app: &App, theme: &Theme) {
+    let Some(ref dedup_result) = app.dedup_result else {
+        return;
+    };
+
+    let group = dedup_result.get_duplicate_group(app.selected_line);
+    if group.len() <= 1 {
+        return; // Not part of a duplicate group
+    }
+
+    let canonical = dedup_result.canonical_line(app.selected_line);
+    let area = centered_rect(60, 70, frame.area());
+    frame.render_widget(Clear, area);
+
+    let mut lines = Vec::new();
+
+    // Header
+    lines.push(Line::from(Span::styled(
+        format!("Duplicate Group (canonical: line {})", canonical + 1),
+        Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from(""));
+
+    // List all lines in the group
+    for &line_idx in &group {
+        let is_canonical = line_idx == canonical;
+        let is_selected = line_idx == app.selected_line;
+
+        let tag = if is_canonical {
+            "ORIG"
+        } else {
+            "DUP "
+        };
+
+        let tag_color = if is_canonical {
+            theme.accent
+        } else {
+            theme.duplicate
+        };
+
+        let marker = if is_selected {
+            "▶"
+        } else {
+            " "
+        };
+
+        // Get a preview of the line content
+        let preview = app.dataset.get_line(line_idx)
+            .map(|l| {
+                let s: String = l.chars().take(80).collect();
+                if l.len() > 80 { format!("{}...", s) } else { s }
+            })
+            .unwrap_or_default();
+
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!(" {} ", marker),
+                Style::default().fg(theme.fg),
+            ),
+            Span::styled(
+                format!("{:>6} ", line_idx + 1),
+                Style::default().fg(tag_color),
+            ),
+            Span::styled(
+                format!("[{}] ", tag),
+                Style::default().fg(tag_color).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                preview,
+                Style::default().fg(if is_selected { theme.fg } else { theme.muted }),
+            ),
+        ]));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        format!("{} lines in this group", group.len()),
+        Style::default().fg(theme.muted),
+    )));
+
+    let popup = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .title(Span::styled(" Dedup Group ", Style::default().fg(theme.accent)))
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.border))
+                .style(Style::default().bg(theme.bg)),
+        )
+        .wrap(Wrap { trim: false });
+
+    frame.render_widget(popup, area);
 }
 
 /// Render the detail panel showing pretty-printed JSON

@@ -52,6 +52,8 @@ pub struct App {
     pub dedup_result: Option<DedupResult>,
     /// Optional JSON field path for field-specific dedup (dot-notation)
     pub dedup_field: Option<String>,
+    /// Whether to show the dedup group popup
+    pub show_dedup_group: bool,
     /// Whether to show the help popup
     pub show_help: bool,
     /// Whether the app should quit
@@ -87,6 +89,7 @@ impl App {
             lint_results: Vec::new(),
             dedup_result: None,
             dedup_field: None,
+            show_dedup_group: false,
             show_help: false,
             should_quit: false,
             selected_line: 0,
@@ -122,6 +125,7 @@ impl App {
     pub fn toggle_dedup(&mut self) {
         if self.dedup_result.is_some() {
             self.dedup_result = None;
+            self.show_dedup_group = false;
         } else {
             let mut engine = DedupEngine::new(DedupStrategy::SimHash { threshold: 3 });
             if let Some(ref field) = self.dedup_field {
@@ -129,6 +133,13 @@ impl App {
             }
             let result = engine.scan(&self.dataset);
             self.dedup_result = Some(result);
+        }
+    }
+
+    /// Toggle the dedup group popup
+    pub fn toggle_dedup_group(&mut self) {
+        if self.dedup_result.is_some() {
+            self.show_dedup_group = !self.show_dedup_group;
         }
     }
 

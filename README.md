@@ -107,6 +107,7 @@ The engine works in two phases: parallel fingerprinting (workers read directly f
 | `Enter` | Toggle detail panel |
 | `←` / `→` (or `h` / `l`) | Navigate tokens (Token X-Ray mode with detail open) |
 | `D` | Toggle dedup scan |
+| `O` | Show duplicate group popup |
 | `?` | Help |
 | `q` / `Esc` | Quit |
 
@@ -139,6 +140,7 @@ caret data.jsonl --dedup --dedup-threshold 5           # Aggressive fuzzy
 caret data.jsonl --dedup --dedup-field prompt          # Dedup by specific field
 caret data.jsonl --dedup --dedup-field messages.content # Nested field (dot-notation)
 caret data.jsonl --dedup-field prompt                  # TUI mode: D key uses this field
+caret data.jsonl --dedup --dedup-export-dups dups.jsonl # Export duplicate lines only
 
 # Linting
 caret data.jsonl --lint

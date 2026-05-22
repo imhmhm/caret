@@ -98,6 +98,10 @@ struct Args {
     #[argh(option)]
     dedup_field: Option<String>,
 
+    /// export duplicate lines to this path
+    #[argh(option)]
+    dedup_export_dups: Option<String>,
+
     /// start MCP server on this port (exposes dataset as tools/resources to LLMs)
     #[argh(option, default = "0")]
     mcp_port: u16,
@@ -438,6 +442,11 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                         app.toggle_dedup();
                     }
 
+                    // Show dedup group popup (Shift+O)
+                    (KeyCode::Char('O'), _) => {
+                        app.toggle_dedup_group();
+                    }
+
                     // Toggle help
                     (KeyCode::Char('?'), _) => {
                         app.show_help = !app.show_help;
@@ -553,6 +562,28 @@ fn run_dedup_mode(args: &Args, dataset: &Dataset) -> Result<()> {
 
         writer.flush()?;
         eprintln!("Exported {} unique lines to {}", exported, export_path);
+    }
+
+    // Export duplicate lines if requested
+    if let Some(ref export_path) = args.dedup_export_dups {
+        eprintln!("\nExporting duplicate lines to {}...", export_path);
+
+        let file = File::create(export_path)
+            .with_context(|| format!("Failed to create export file: {}", export_path))?;
+        let mut writer = BufWriter::new(file);
+
+        let mut exported = 0usize;
+        for i in 0..dataset.line_count() {
+            if result.is_duplicate(i) {
+                if let Some(line) = dataset.get_line(i) {
+                    writeln!(writer, "{}", line)?;
+                    exported += 1;
+                }
+            }
+        }
+
+        writer.flush()?;
+        eprintln!("Exported {} duplicate lines to {}", exported, export_path);
     }
 
     Ok(())
