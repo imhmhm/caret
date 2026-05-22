@@ -413,14 +413,18 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                     (KeyCode::Up, _) => {
                         app.scroll_up(1);
                     }
-                    (KeyCode::Left, _) => {
+                    (KeyCode::Left, _) | (KeyCode::Char('h'), _) => {
                         if app.show_dedup_group {
                             app.dedup_group_focus_right = false;
+                        } else if app.view_mode == ViewMode::TokenXray && app.show_detail {
+                            app.prev_token();
                         }
                     }
-                    (KeyCode::Right, _) => {
+                    (KeyCode::Right, _) | (KeyCode::Char('l'), _) => {
                         if app.show_dedup_group {
                             app.dedup_group_focus_right = true;
+                        } else if app.view_mode == ViewMode::TokenXray && app.show_detail {
+                            app.next_token();
                         }
                     }
                     (KeyCode::Char('g'), _) => {
@@ -489,18 +493,6 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                     // Toggle help
                     (KeyCode::Char('?'), _) => {
                         app.show_help = !app.show_help;
-                    }
-
-                    // Token navigation in X-Ray mode (←/→)
-                    (KeyCode::Left, _) | (KeyCode::Char('h'), _) => {
-                        if app.view_mode == ViewMode::TokenXray && app.show_detail {
-                            app.prev_token();
-                        }
-                    }
-                    (KeyCode::Right, _) | (KeyCode::Char('l'), _) => {
-                        if app.view_mode == ViewMode::TokenXray && app.show_detail {
-                            app.next_token();
-                        }
                     }
 
                     _ => {}
