@@ -388,9 +388,22 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                 }
 
                 match (key.code, key.modifiers) {
-                    // Quit (Esc also quits in normal mode)
-                    (KeyCode::Char('q'), _) | (KeyCode::Esc, _) => {
+                    // Quit: q always quits; Esc clears search results first if any
+                    (KeyCode::Char('q'), _) => {
                         app.should_quit = true;
+                    }
+                    (KeyCode::Esc, _) => {
+                        if app.show_dedup_group {
+                            app.show_dedup_group = false;
+                        } else if app.show_help {
+                            app.show_help = false;
+                        } else if !app.search_matches.is_empty() {
+                            app.search_matches.clear();
+                            app.search_current_idx = 0;
+                            app.search_query.clear();
+                        } else {
+                            app.should_quit = true;
+                        }
                     }
 
                     // d/f: context-dependent (d=up, f=down)
