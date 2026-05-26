@@ -387,6 +387,26 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                     continue;
                 }
 
+                // Goto mode: intercept all keys for line number input
+                if app.goto_mode {
+                    match key.code {
+                        KeyCode::Enter => {
+                            app.execute_goto();
+                        }
+                        KeyCode::Esc => {
+                            app.exit_goto();
+                        }
+                        KeyCode::Backspace => {
+                            app.goto_backspace();
+                        }
+                        KeyCode::Char(c) => {
+                            app.goto_push_char(c);
+                        }
+                        _ => {}
+                    }
+                    continue;
+                }
+
                 match (key.code, key.modifiers) {
                     // Quit: q always quits; Esc clears search results first if any
                     (KeyCode::Char('q'), _) => {
@@ -404,6 +424,11 @@ fn run_tui_loop(mut tui: Tui, mut app: App, mut tui_rx: Option<TuiCommandReceive
                         } else {
                             app.should_quit = true;
                         }
+                    }
+
+                    // Goto line number (vim-style :123)
+                    (KeyCode::Char(':'), _) => {
+                        app.enter_goto();
                     }
 
                     // d/f: context-dependent (d=up, f=down)

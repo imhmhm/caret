@@ -88,6 +88,10 @@ pub struct App {
     pub search_matches: Vec<usize>,
     /// Current index into search_matches (0-based)
     pub search_current_idx: usize,
+    /// Whether the app is in goto input mode (like vim's :123)
+    pub goto_mode: bool,
+    /// Current goto input string (line number)
+    pub goto_input: String,
     /// Tree expansion state for JSON tree view
     #[allow(dead_code)]
     pub tree_expanded: std::collections::HashSet<String>,
@@ -127,6 +131,8 @@ impl App {
             search_query: String::new(),
             search_matches: Vec::new(),
             search_current_idx: 0,
+            goto_mode: false,
+            goto_input: String::new(),
             tree_expanded: std::collections::HashSet::new(),
             selected_token: 0,
             token_count: 0,
@@ -425,5 +431,55 @@ impl App {
     /// Check if a line is the current search match
     pub fn line_is_current_search_match(&self, line_index: usize) -> bool {
         self.search_matches.get(self.search_current_idx) == Some(&line_index)
+    }
+
+    // ─── Goto Line ───────────────────────────────────────────────────────
+
+    /// Enter goto input mode (like vim's :123)
+    pub fn enter_goto(&mut self) {
+        self.goto_mode = true;
+        self.goto_input.clear();
+    }
+
+    /// Exit goto mode
+    pub fn exit_goto(&mut self) {
+        self.goto_mode = false;
+    }
+
+    /// Append a character to the goto input
+    pub fn goto_push_char(&mut self, c: char) {
+        // Only accept digits
+        if c.is_ascii_digit() {
+            self.goto_input.push(c);
+        }
+    }
+
+    /// Delete the last character from the goto input
+    pub fn goto_backspace(&mut self) {
+        self.goto_input.pop();
+    }
+
+    /// Execute goto: jump to the specified line number
+    pub fn execute_goto(&mut self) {
+        self.goto_mode = false;
+        if self.goto_input.is_empty() {
+            return;
+        }
+        // Parse line number (user input is 1-based, convert to 0-based)
+        if let Ok(line_num) = self.goto_input.parse::<usize>() {
+            if line_num > 0 {
+                let target = (line_num - 1).min(self.dataset.line_count().saturating_sub(1));
+                self.selected_line = target;
+                // Center the line in the viewport
+                if self.selected_line < self.viewport_height / 2 {
+                    self.scroll = 0;
+                } else {
+                    self.scroll = self.selected_line - self.viewport_height / 2;
+                }
+                self.selected_token = 0;
+                self.detail_scroll = 0;
+            }
+        }
+        self.goto_input.clear();
     }
 }

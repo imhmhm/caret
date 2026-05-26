@@ -101,6 +101,7 @@ The engine works in two phases: parallel fingerprinting (workers read directly f
 | `↑` / `↓` | Move between data lines (always controls main list) |
 | `d` / `f` | Up / Down: scroll detail panel when open, otherwise move main list |
 | `g` / `G` | Top / Bottom of main list |
+| `:123` | Go to line number (vim-style) |
 | `Ctrl+d` / `Ctrl+u` | Half-page scroll (detail panel if open, otherwise main list) |
 | `PageDown` / `PageUp` | Full-page scroll (detail panel if open, otherwise main list) |
 | `Tab` | Cycle view: Text / Token X-Ray / Tree |

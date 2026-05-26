@@ -45,8 +45,9 @@ impl Default for Theme {
 pub fn render(frame: &mut Frame, app: &mut App) {
     let theme = Theme::default();
 
-    // Main layout: content area + (search bar if active) + status bar
-    let main_chunks = if app.search_mode {
+    // Main layout: content area + (input bar if active) + status bar
+    // Input bar can be search_mode or goto_mode
+    let main_chunks = if app.search_mode || app.goto_mode {
         Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(3), Constraint::Length(3), Constraint::Length(3)])
@@ -77,9 +78,11 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         render_content(frame, app, content_area, &theme);
     }
 
-    // Render search bar if in search mode
+    // Render input bar if active
     if app.search_mode {
         render_search_bar(frame, app, main_chunks[1], &theme);
+    } else if app.goto_mode {
+        render_goto_bar(frame, app, main_chunks[1], &theme);
     }
 
     // Render status bar
@@ -270,6 +273,31 @@ fn render_search_bar(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     frame.render_widget(search_bar, area);
 }
 
+/// Render the goto input bar (like vim's :123)
+fn render_goto_bar(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
+    let cursor = "█";
+    let goto_line = Line::from(vec![
+        Span::styled(
+            " :",
+            Style::default().fg(theme.accent).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            format!("{}{}", app.goto_input, cursor),
+            Style::default().fg(theme.fg),
+        ),
+    ]);
+
+    let goto_bar = Paragraph::new(goto_line)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(theme.accent))
+                .style(Style::default().bg(theme.bg)),
+        );
+
+    frame.render_widget(goto_bar, area);
+}
+
 /// Render the status bar
 fn render_status_bar(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     let lint_count = app.lint_results.len();
@@ -401,6 +429,10 @@ fn render_help_popup(frame: &mut Frame, theme: &Theme) {
         Line::from(vec![
             Span::styled("  G        ", Style::default().fg(theme.warning)),
             Span::raw("Go to bottom"),
+        ]),
+        Line::from(vec![
+            Span::styled("  :123     ", Style::default().fg(theme.warning)),
+            Span::raw("Go to line number (vim-style)"),
         ]),
         Line::from(vec![
             Span::styled("  Ctrl+d   ", Style::default().fg(theme.warning)),
